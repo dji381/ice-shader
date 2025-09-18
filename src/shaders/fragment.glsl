@@ -1,7 +1,14 @@
 uniform vec3 uIceColor;
+uniform vec3 uCrackColor;
 uniform float uTime;
 uniform float uFrostAmount;
+uniform float uFresnelPower;
+uniform sampler2D uCrackTexture;
+uniform float uCrackStrenght;
+uniform float uRimBoost;
 varying vec2 vUv;
+varying vec3 vPosition;
+varying vec3 vNormalW;
 // --- Fonctions auxiliaires ---
 float randomValue(vec2 uv) {
     return fract(sin(dot(uv, vec2(12.9898, 78.233))) * 43758.5453);
@@ -52,11 +59,26 @@ float simpleNoise(vec2 uv, float scale) {
 float saturateFloat(float x) {
     return clamp(x, 0.0, 1.0);
 }
+float fresnel(float amount, vec3 normal, vec3 view){
+	return pow(
+		1.0 - clamp(dot(normalize(normal), normalize(view)), 0.0, 1.0),
+		amount
+	);
+}
 void main() {
+    vec3 viewDir = normalize(cameraPosition - vPosition);
+    vec3 normaln = normalize(vNormalW);
     float n = simpleNoise(vUv, 30.0);
     float d = uFrostAmount * n;
     n = 1.0 - d;
     vec3 color = uIceColor * n;
-    float nSaturate = saturateFloat(n);
-    csm_DiffuseColor = vec4(vec3(color) , nSaturate);
+    float nSaturate = max(.91,saturateFloat(n));
+    vec4 crackTexture = texture2D(uCrackTexture,vUv);
+    crackTexture = vec4(crackTexture.xyz,crackTexture.a * uCrackStrenght);
+    crackTexture.xyz *= uCrackColor;
+    float fresnel = fresnel(uFresnelPower,normaln,viewDir);
+    crackTexture *= fresnel; 
+    crackTexture.xyz *= uRimBoost;
+    csm_Emissive = crackTexture.xyz;
+    csm_DiffuseColor = vec4(vec3(mix(color,vec3(uCrackColor * uRimBoost),crackTexture.a)) , nSaturate);
 }
